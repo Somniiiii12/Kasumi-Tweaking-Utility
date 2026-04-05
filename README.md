@@ -2,7 +2,6 @@
 
 **Version:** 2.4.1  
 **Category:** Windows Optimization Suite  
-**License:** MIT (or specify your license)
 
 ---
 
